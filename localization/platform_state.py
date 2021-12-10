@@ -8,7 +8,7 @@ def determine_platform_state(img, center, plat_height, plat_width):
     img = img[center[1]-height:center[1]+height, center[0]-width:center[0]+width]
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
     edges = cv.Canny(gray, 75, 150)
-    lines = cv.HoughLinesP(edges, 1, np.pi/180, 60, minLineLength=(plat_width * 0.6), maxLineGap=90)
+    lines = cv.HoughLinesP(edges, 1, np.pi/180, 75, minLineLength=(plat_width * 0.6), maxLineGap=90)
     bins = [0,0,0]
 
     for line in lines:
