@@ -8,22 +8,27 @@ def determine_platform_state(img, center, plat_height, plat_width):
     img = img[center[1]-height:center[1]+height, center[0]-width:center[0]+width]
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
     edges = cv.Canny(gray, 75, 150)
-    lines = cv.HoughLinesP(edges, 1, np.pi/180, 30, maxLineGap=250)
-    new_lines = []
+    lines = cv.HoughLinesP(edges, 1, np.pi/180, 60, minLineLength=(plat_width * 0.6), maxLineGap=90)
+    bins = [0,0,0]
+
     for line in lines:
         x1, y1, x2, y2 = line[0]
-        dist = math.dist([x1,y1], [x2,y2])
-        if dist >= plat_width * 0.6:
-            new_lines.append(line[0])
-        print(dist)
-        print(line)
-    print(new_lines)
-    print(plat_width * 0.6)
-
-    for line in new_lines:
-        x1, y1, x2, y2 = line
+        slope = (y2-y1)/(x2-x1)
+        if slope <= -0.3:
+            bins[0] += 1
+        elif slope >= 0.3:
+            bins[2] += 1
+        else:
+            bins[1] += 1
         cv.line(img, (x1, y1), (x2, y2), (0, 0, 128), 1)
     
+    if bins[0] > bins[2]:
+        print("Platform Left")
+    elif bins[2] > bins[0]:
+        print("Platform Right")
+    else:
+        print("Platform Center")
+    #print(bins)
 
     # Print test image
     cv.imshow("Platform Image", img)
