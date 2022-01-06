@@ -11,24 +11,26 @@ def determine_platform_state(img, center, plat_height, plat_width):
     lines = cv.HoughLinesP(edges, 1, np.pi/180, 75, minLineLength=(plat_width * 0.6), maxLineGap=90)
     bins = [0,0,0]
 
-    for line in lines:
-        x1, y1, x2, y2 = line[0]
-        slope = (y2-y1)/(x2-x1)
-        if slope <= -0.3:
-            bins[0] += 1
-        elif slope >= 0.3:
-            bins[2] += 1
-        else:
-            bins[1] += 1
-        cv.line(img, (x1, y1), (x2, y2), (0, 0, 128), 1)
-    
-    if bins[0] > bins[2]:
-        print("Platform Left")
-    elif bins[2] > bins[0]:
-        print("Platform Right")
+    if lines.size == 0:
+        print("Unsure of state")
     else:
-        print("Platform Center")
-    #print(bins)
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            slope = (y2-y1)/(x2-x1)
+            if slope <= -0.3:
+                bins[0] += 1
+            elif slope >= 0.3:
+                bins[2] += 1
+            else:
+                bins[1] += 1
+            cv.line(img, (x1, y1), (x2, y2), (0, 0, 128), 1)
+        
+        if bins[0] > bins[2]:
+            print("Platform Left")
+        elif bins[2] > bins[0]:
+            print("Platform Right")
+        else:
+            print("Platform Center")
 
     # Print test image
     cv.imshow("Platform Image", img)
@@ -39,7 +41,7 @@ def determine_platform_state(img, center, plat_height, plat_width):
 
 # Testing main
 def main():
-    orig = cv.imread(cv.samples.findFile("platform.png"))
+    orig = cv.imread(cv.samples.findFile("images/platform.png"))
     determine_platform_state(orig, (370,432), 197, 291)
 
 if __name__ == '__main__':
