@@ -1,6 +1,5 @@
 import cv2 as cv
 import numpy as np
-import math
 
 def determine_platform_state(img, center, plat_width, plat_height): 
     height = int(plat_height / 2)
