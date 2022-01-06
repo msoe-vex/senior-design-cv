@@ -2,7 +2,7 @@ import cv2 as cv
 import numpy as np
 import math
 
-def determine_platform_state(img, center, plat_height, plat_width): 
+def determine_platform_state(img, center, plat_width, plat_height): 
     height = int(plat_height / 2)
     width = int(plat_width / 2)
     img = img[center[1]-height:center[1]+height, center[0]-width:center[0]+width]
@@ -42,7 +42,7 @@ def determine_platform_state(img, center, plat_height, plat_width):
 # Testing main
 def main():
     orig = cv.imread(cv.samples.findFile("images/platform.png"))
-    determine_platform_state(orig, (370,432), 197, 291)
+    determine_platform_state(orig, (370,432), 291, 197)
 
 if __name__ == '__main__':
     main()
