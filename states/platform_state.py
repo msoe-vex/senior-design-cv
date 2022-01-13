@@ -36,10 +36,10 @@ def determine_platform_state(img, center, plat_width, plat_height):
         else:
             print("Platform Center")
 
-    # Print test image
-    cv.imshow("Platform Image", img)
-    cv.waitKey(0) 
-    cv.destroyAllWindows()
+    # # Print test image
+    # cv.imshow("Platform Image", img)
+    # cv.waitKey(0) 
+    # cv.destroyAllWindows()
 
 
 
