@@ -2,14 +2,18 @@ import cv2 as cv
 import numpy as np
 
 def determine_platform_state(img, center, plat_width, plat_height): 
+    # Resize image to only located platform object
     height = int(plat_height / 2)
     width = int(plat_width / 2)
     img = img[center[1]-height:center[1]+height, center[0]-width:center[0]+width]
+
+    # Transform image
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
     edges = cv.Canny(gray, 75, 150)
     lines = cv.HoughLinesP(edges, 1, np.pi/180, 75, minLineLength=(plat_width * 0.6), maxLineGap=90)
     bins = [0,0,0]
 
+    # Bin line slopes
     if lines.size == 0:
         print("Unsure of state")
     else:
@@ -24,6 +28,7 @@ def determine_platform_state(img, center, plat_width, plat_height):
                 bins[1] += 1
             cv.line(img, (x1, y1), (x2, y2), (0, 0, 128), 1)
         
+        # Determine direction of platform based on bins
         if bins[0] > bins[2]:
             print("Platform Left")
         elif bins[2] > bins[0]:
