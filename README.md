@@ -2,7 +2,7 @@
 Computer vision project for the MSOE Senior Design Team
 
 ### Localization Pipeline
-1. Set up stream to simultaneously intake RGB images and depth maps from an (Intel RealSense D435 Depth Camera)[https://www.intelrealsense.com/depth-camera-d435/]
+1. Set up stream to simultaneously intake RGB images and depth maps from an [Intel RealSense D435 Depth Camera](https://www.intelrealsense.com/depth-camera-d435/)
 2. Identify objects in RGB image using a custom trained [YOLOv5](https://github.com/ultralytics/yolov5) network and [Batch Mode Cluster-NMS](https://github.com/Zzh-tju/yolov5), and then use OpenCV to determine the state of all platform and goal objects
 3. Obtain the distance from the camera to each of the identified objects using OpenCV/trig and the depth map
 4. Use the [D435's intrinsic parameters](https://dev.intelrealsense.com/docs/projection-in-intel-realsense-sdk-20) and trig to determine the horizontal/vertical angles of the identified objects relative to the camera
