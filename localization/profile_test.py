@@ -1,11 +1,18 @@
 import pyrealsense2 as rs
 import cv2
-from detect import run
+from detect import run, non_max_suppression
 import numpy as np
 import time
 import torch
 import io
 import os
+
+# TODO: 
+# - Add platform/goal state detection
+# - Add localization fusion logic
+# - Find out why x1/y1 values are out of frame
+# - Find out why max detections for NMS are always being reached
+# - Optimize NMS code
 
 focal_length = ((448.0-172.0) * 24.0) / 11.0
 # ['Blue Goal', 'Blue Platform', 'Blue Robot', 'Neutral Goal', 'Red Goal', 'Red Platform', 'Red Robot', 'Ring']
@@ -17,13 +24,18 @@ config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
 pipeline.start(config)
 
+model = torch.jit.load('static/best_torchscript.pt', map_location=torch.device('cpu'))
+
 def obj_distance(obj, depth_frame):
     # file parsing
-    obj_array = obj.split()
-    x, y, w, h = int(round(float(obj_array[1]))), int(round(float(obj_array[2]))), float(obj_array[3]), float(obj_array[4])
+    x1, y1, x2, y2, conf, cls = obj
 
     # calculating distance using trigonometric properties
-    trig_distance = (width_dict[str(obj_array[0])] * focal_length)/w
+    trig_distance = (width_dict[str(int(cls))] * focal_length)/x2-x1
+    
+    # calculating center of object
+    x = (x1 + x2)/2 
+    y = (y1 + y2)/2
     
     # extract average distance from depth map and convert to inches
     depth_distance_meters = (depth_frame.get_distance(x, y) +\
@@ -42,23 +54,18 @@ def obj_distance(obj, depth_frame):
     
     return distance
 
-frames = pipeline.wait_for_frames()
-depth_frame = frames.get_depth_frame()
-color_frame = frames.get_color_frame()
-color_image = np.asanyarray(color_frame.get_data())
+while True:
+    frames = pipeline.wait_for_frames()
+    depth_frame = frames.get_depth_frame()
+    color_frame = frames.get_color_frame()
+    color_image = np.asanyarray(color_frame.get_data())
 
-# IO for trained YOLOv5 model (color_img->game_objects)
-cv2.imwrite('img.png', color_image)
+    resized = cv2.resize(color_image, (640, 640), interpolation = cv2.INTER_AREA)
+    model_input = torch.reshape(torch.tensor(resized).float(), (1, 3, 640, 640))
+    results = model(model_input)[0]
+    nms_results = non_max_suppression(results, conf_thres=0.7)[0]
 
-run(os.path.basename("static/best_torchscript.pt"), os.path.basename("img.png"), conf_thres=.6, name="yolo_obj", save_txt=True, nosave=True, exist_ok=True)
-
-# reading labels from localization output
-game_objects = []
-with open('runs/detect/yolo_obj/labels/img.txt', 'r+') as f:
-    game_objects = f.readlines()
-    f.truncate(0)
-    f.close()
-
-# calculating distance for all game objects in frame
-for obj in game_objects:
-    print(f'{obj.split()[0]}: {obj_distance(obj, depth_frame)}')
+    # calculating distance for all game objects in frame
+#     for obj in nms_results:
+#         print(f'{obj.split()[0]}: {obj_distance(obj, depth_frame)}')
+    print("A")
