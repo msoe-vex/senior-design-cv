@@ -72,6 +72,7 @@ def is_goal_tipped(img, center, plat_width, plat_height):
   height = int(plat_height / 2)+5
   width = int(plat_width / 2)+5
   img = img[center[1]-height:center[1]+height, center[0]-width:center[0]+width]
+  # TODO: verify center is returned from model as (x,y) instead of (y,x)
   
   gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
   _, bw = cv.threshold(gray, 50, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)
