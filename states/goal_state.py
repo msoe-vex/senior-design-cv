@@ -52,7 +52,13 @@ def getOrientationDraw(pts, img):
   textbox = cv.rectangle(img, (cntr[0], cntr[1]-25), (cntr[0] + 250, cntr[1] + 10), (255,255,255), -1)
   cv.putText(img, label, (cntr[0], cntr[1]), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1, cv.LINE_AA)
 
-def getOrientation(pts, img):
+def getOrientation(pts):
+  """
+    This function determines the orientation of a contour given the contour points
+
+    :param pts: contour points
+    :return: angle of the contour
+  """ 
   # Construct a buffer used by the pca analysis
   sz = len(pts)
   data_pts = np.empty((sz, 2), dtype=np.float64)
@@ -67,10 +73,20 @@ def getOrientation(pts, img):
   # Return angle
   return atan2(eigenvectors[0,1], eigenvectors[0,0])
 
-def is_goal_tipped(img, center, plat_width, plat_height): 
+def is_goal_tipped(img, center, goal_width, goal_height): 
+  """
+    This function determines the state of a goal (tipped or not tipped) given an image and bounding box
+
+    :param img: Full images from camera
+    :param center: center of bounding box (x,y)
+    :param goal_width: width of goal bounding box
+    :param goal_height: height of goal bounding box
+    :return: returns -1 if state of goal cannot be determined
+             returns one integer (0,1) corresponding to (not tipped, tipped) state
+  """ 
   # Resize image to only located goal object
-  height = int(plat_height / 2)+5
-  width = int(plat_width / 2)+5
+  height = int(goal_height / 2)+5
+  width = int(goal_width / 2)+5
   img = img[center[1]-height:center[1]+height, center[0]-width:center[0]+width]
   # TODO: verify center is returned from model as (x,y) instead of (y,x)
   
@@ -87,7 +103,7 @@ def is_goal_tipped(img, center, plat_width, plat_height):
           continue
       # cv.drawContours(img, contours, i, (0, 0, 255), 2)
       # Find orientation of shape
-      angles.append(abs(int(np.rad2deg(getOrientation(c, img)))))
+      angles.append(abs(int(np.rad2deg(getOrientation(c)))))
   
   # # Print test image
   # cv.imshow("Goal Image", img)

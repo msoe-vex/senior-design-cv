@@ -6,7 +6,7 @@ def platform_state_with_determinism(robot_position, robot_rotation, img, center,
     This function takes in the image, bounding box, and robot position.
     Determines the state of the platform (left, center, right) and which color platform (blue, red)
 
-    :param robot_position: (x,y) position of the robot (Assuming 500-X field)
+    :param robot_position: (x,y) position of the robot (Assuming 144in field)
     :param robot_rotation: Angle of the robot (Assuming 180 to -180 rotation and 0-deg facing towards blue platform)
     :param img: Full images from camera
     :param center: center of bounding box (x,y)
@@ -18,7 +18,7 @@ def platform_state_with_determinism(robot_position, robot_rotation, img, center,
     """ 
     # Center 50% of the field
     # Only angles up to 30 degrees off center
-    if robot_position[0] >= 125 and robot_position <= 425:
+    if robot_position[1] >= 36 and robot_position[1] <= 108:
         if abs(robot_rotation) <= 60:
             # Blue Platform State
             plat_state = determine_platform_state(img, center, plat_width, plat_height)
