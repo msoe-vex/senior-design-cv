@@ -24,7 +24,7 @@ config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
 pipeline.start(config)
 
-model = torch.jit.load('static/best_torchscript.pt', map_location=torch.device('cpu'))
+model = torch.jit.load('static/best_torchscript.pt', map_location=torch.device('cuda:0'))
 
 def obj_distance(obj, depth_frame):
     # file parsing
@@ -54,18 +54,24 @@ def obj_distance(obj, depth_frame):
     
     return distance
 
-while True:
+t = 0
+i = 0
+while i < 103:
+    if i == 3:
+        t = time.time()
     frames = pipeline.wait_for_frames()
     depth_frame = frames.get_depth_frame()
     color_frame = frames.get_color_frame()
     color_image = np.asanyarray(color_frame.get_data())
 
     resized = cv2.resize(color_image, (640, 640), interpolation = cv2.INTER_AREA)
-    model_input = torch.reshape(torch.tensor(resized).float(), (1, 3, 640, 640))
+    model_input = torch.reshape(torch.tensor(resized).float(), (1, 3, 640, 640)).cuda()
     results = model(model_input)[0]
     nms_results = non_max_suppression(results, conf_thres=0.7)[0]
+
 
     # calculating distance for all game objects in frame
 #     for obj in nms_results:
 #         print(f'{obj.split()[0]}: {obj_distance(obj, depth_frame)}')
-    print("A")
+    i+=1
+print(100/(time.time()-t),"fps")
