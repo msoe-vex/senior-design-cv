@@ -19,7 +19,7 @@ save_folder = "C:\\Users\\bowsert\\Downloads\\test"
 
 # Gets the current time in milliseconds, from epoch
 def get_current_ms():
-    return int(time() * 1000) 
+    return int(time() * 500) 
 
 # Defines a save directory local to the Jupyter Notebook
 def get_save_directory(x):
