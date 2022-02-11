@@ -2,10 +2,7 @@ import pyrealsense2 as rs
 import cv2
 from detect import run, non_max_suppression
 import numpy as np
-import time
 import torch
-import io
-import os
 
 # TODO: 
 # - Add platform/goal state detection
@@ -27,10 +24,10 @@ model = torch.jit.load('static/best_torchscript.pt', map_location=torch.device('
 
 def obj_distance(obj, depth_frame):
     # file parsing
-    x1, y1, x2, y2, conf, cls = obj
+    x1, y1, x2, y2, _, cls = obj
 
     # calculating distance using trigonometric properties
-    trig_distance = (width_dict[str(int(cls))] * focal_length)/x2-x1
+    trig_distance = (width_dict[str(int(cls))] * focal_length)/x2-x1 #TODO Joe - Convert Focal length to Meters
     
     # calculating center of object
     x = (x1 + x2)/2 
@@ -42,7 +39,6 @@ def obj_distance(obj, depth_frame):
                              depth_frame.get_distance(x, y+2) +\
                              depth_frame.get_distance(x-2, y) +\
                              depth_frame.get_distance(x, y-2))/5.0
-    depth_distance = 39.3701 * depth_distance_meters
     
     # weighting and combining localization methods
     distance = (trig_distance * .2) + (depth_distance_meters * .8) 
@@ -66,15 +62,20 @@ while True:
     nms_results = non_max_suppression(results, conf_thres=0.7)[0]
 
 
-    # calculating distance for all game objects in frame
+    # Calculates the distance of all game objects in frame
+    HFOV, VFOV = 86, 57
     for obj in nms_results:
-#         print(f'{obj.split()[0]}: {obj_distance(obj, depth_frame)}')
+        # 
         dist = obj_distance(obj, depth_frame)
-        HFOV, VFOV = 86, 57
         x1, y1, x2, y2, conf, cls = obj
         x = (x1 + x2)/2 
         y = (y1 + y2)/2
-        h-angle = ((x - 320.0)/(320.0))*(HFOV/2)
-        v-angle = ((y - 320.0)/(320.0))*(VFOV/2)
-        euclidean-angle = (h-angle^2+v-angle^2)^0.5
+        h_angle = np.radians(((x - 320.0)/(320.0))*(HFOV/2))
+        v_angle = np.radians(((y - 320.0)/(320.0))*(VFOV/2))
+
+        # Convert polar angles into vector
+        v_x = dist * np.cos(v_angle) * np.cos(h_angle)
+        v_y = dist * np.cos(v_angle) * np.sin(h_angle)
+        v_z = dist * np.sin(v_angle)
+        vec = np.array([v_x, v_y, v_z])
         
