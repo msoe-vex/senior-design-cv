@@ -1,7 +1,6 @@
 import cv2 as cv
 import numpy as np
 from math import atan2, cos, sin, sqrt, pi
-import time
 
 def drawAxis(img, p_, q_, color, scale):
   p = list(p_)
