@@ -9,7 +9,6 @@ import os
 
 # TODO: 
 # - Add platform/goal state detection
-# - Add localization fusion logic
 # - Find out why x1/y1 values are out of frame
 # - Find out why max detections for NMS are always being reached
 # - Optimize NMS code
@@ -54,11 +53,8 @@ def obj_distance(obj, depth_frame):
     
     return distance
 
-t = 0
-i = 0
-while i < 103:
-    if i == 3:
-        t = time.time()
+
+while True:
     frames = pipeline.wait_for_frames()
     depth_frame = frames.get_depth_frame()
     color_frame = frames.get_color_frame()
@@ -71,7 +67,14 @@ while i < 103:
 
 
     # calculating distance for all game objects in frame
-#     for obj in nms_results:
+    for obj in nms_results:
 #         print(f'{obj.split()[0]}: {obj_distance(obj, depth_frame)}')
-    i+=1
-print(100/(time.time()-t),"fps")
+        dist = obj_distance(obj, depth_frame)
+        HFOV, VFOV = 86, 57
+        x1, y1, x2, y2, conf, cls = obj
+        x = (x1 + x2)/2 
+        y = (y1 + y2)/2
+        h-angle = ((x - 320.0)/(320.0))*(HFOV/2)
+        v-angle = ((y - 320.0)/(320.0))*(VFOV/2)
+        euclidean-angle = (h-angle^2+v-angle^2)^0.5
+        
