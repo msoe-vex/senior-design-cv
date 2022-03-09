@@ -80,14 +80,23 @@ def coordTransform(M: np.array, A: np.array, translation: np.array) -> np.array:
 
 # Testing main
 def main():
-    camera = getQuaternionFromEuler(0,0.2618,0) #TODO - update for actual rotational changes in camera frame
+    camera = getQuaternionFromEuler(0,np.radians(15),0) #TODO - update for actual rotational changes in camera frame (0.2618 rad)
     robot = Quaternion(0.0,0.0,0.0,1.0)
-    cameraToRobotTranslation = np.array([0.19,0,0.3]) #TODO - update for actual translational changes in camera frame (X,Y,Z)
+    cameraToRobotTranslation = np.array([-0.19,0,0.3]) #TODO - update for actual translational changes in camera frame (X,Y,Z)
 
-    rotatedMatrix = Quat2Mat(rotDiff(camera, robot))
-    newVector = coordTransform(rotatedMatrix, np.array([1,1,2]), cameraToRobotTranslation) #TODO - just a test vector (actual comes from Joe's code)
-    print(newVector)
+    cameraToRobotRotation = Quat2Mat(rotDiff(camera, robot))
+    vec1 = coordTransform(cameraToRobotRotation, np.array([1,1,0]), cameraToRobotTranslation) #TODO - just a test vector (actual = vec in profile_test.py)
+    print(vec1)
 
+    # Temp robot location and rotation values for testing (x, y, theta)
+    # TODO - update for actual robot location at time of image capture
+    robotLocation = (2, 2, -135)
+
+    field = getQuaternionFromEuler(0.0, 0.0, -np.radians(robotLocation[2]))
+    robotToFieldRotation = Quat2Mat(rotDiff(robot, field))
+    robotToFieldTranslation = np.array([robotLocation[0], robotLocation[1], 0.0]) # TODO - update actual z value based on gyro distance to ground
+    vec2 = coordTransform(robotToFieldRotation, vec1, robotToFieldTranslation)
+    print(vec2)
 
 if __name__ == '__main__':
     main()

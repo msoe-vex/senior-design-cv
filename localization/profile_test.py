@@ -10,10 +10,16 @@ import torch
 # - Find out why max detections for NMS are always being reached
 # - Optimize NMS code
 
+# Constants for object detection
 focal_length = ((448.0-172.0) * 24.0) / 11.0
 # ['Blue Goal', 'Blue Platform', 'Blue Robot', 'Neutral Goal', 'Red Goal', 'Red Platform', 'Red Robot', 'Ring']
 width_dict = {"7":3.5, "3":12.5, "0":12.5, "4":12.5, "2":5.5, "5":5.5, "1":53.0, "6":53.0}
 
+# Constants for object localization
+HFOV, VFOV = 86, 57
+# TODO calculate cameraToRobotRotation and cameraToRobotTranslation Matrices (import vector_transform code)
+
+# Initialize pipeline and start stream
 pipeline = rs.pipeline()
 config = rs.config()
 config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
@@ -63,7 +69,7 @@ while True:
 
 
     # Calculates the distance of all game objects in frame
-    HFOV, VFOV = 86, 57
+    # TODO calculate translation between robot and field using robots location at time of image capture
     for obj in nms_results:
         # 
         dist = obj_distance(obj, depth_frame)
