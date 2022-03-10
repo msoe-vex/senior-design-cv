@@ -298,7 +298,7 @@ class DetectMultiBackend(nn.Module):
         if jit:  # TorchScript
             LOGGER.info(f'Loading {w} for TorchScript inference...')
             extra_files = {'config.txt': ''}  # model metadata
-            model = torch.jit.load(w, _extra_files=extra_files)
+            model = torch.jit.load(w, map_location=torch.device('cuda:0'), _extra_files=extra_files) #TODO revert back to CPU for CPU
             if extra_files['config.txt']:
                 d = json.loads(extra_files['config.txt'])  # extra_files dict
                 stride, names = int(d['stride']), d['names']

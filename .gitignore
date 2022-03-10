@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+localization/bag_images/
+localization/static/test-run-30-sec.bag
+localization/runs/detect/yolo_gif/

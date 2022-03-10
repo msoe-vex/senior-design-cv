@@ -111,11 +111,13 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         # Inference
         visualize = increment_path(save_dir / Path(path).stem, mkdir=True) if visualize else False
         pred = model(im, augment=augment, visualize=visualize)
+        print(pred.shape)
         t3 = time_sync()
         dt[1] += t3 - t2
 
         # NMS
-        pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+        # pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+        pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms)
         dt[2] += time_sync() - t3
 
         # Second-stage classifier (optional)
@@ -381,7 +383,7 @@ def box_diou(boxes1, boxes2):
 
 #     return output
     
-def non_max_suppression(prediction, conf_thres=0.5, iou_thres=0.6, classes=None, agnostic=False, labels=()):
+def non_max_suppression(prediction, conf_thres=0.5, iou_thres=0.45, classes=None, agnostic=False, labels=()):
     """
     Performs Non-Maximum Suppression (NMS) on inference results
     Returns:
