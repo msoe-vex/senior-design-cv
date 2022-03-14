@@ -99,6 +99,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     model.warmup(imgsz=(1, 3, *imgsz), half=half)  # warmup
     dt, seen = [0.0, 0.0, 0.0], 0
     for path, im, im0s, vid_cap, s in dataset:
+        print(im.shape)
+        print(im)
+        print("-----------------------------------------------------------")
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
         im = im.half() if half else im.float()  # uint8 to fp16/32
@@ -118,6 +121,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         # NMS
         # pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
         pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms)
+        print(pred)
         dt[2] += time_sync() - t3
 
         # Second-stage classifier (optional)

@@ -1,21 +1,20 @@
 import pyrealsense2 as rs
 import cv2
-from detect import run, non_max_suppression
 import numpy as np
 import torch
+
 from utils.plots import Annotator
-import json
+from models.experimental import attempt_load
+from utils.general import non_max_suppression
 
 # TODO: 
 # - Find out why x1/y1 values are out of frame
-# - Find out why max detections for NMS are always being reached
-# - Optimize NMS code
 
 # Calculation for object distance based on bounding box dimensions in meters
 focal_length = ((448.0-172.0) * (24.0*0.0254)) / (11.0*0.0254)
 # Width of game objects in meters
-# ['Blue Goal', 'Blue Platform', 'Blue Robot', 'Neutral Goal', 'Red Goal', 'Red Platform', 'Red Robot', 'Ring']
-width_dict = {"7":3.5*0.0254, "3":12.5*0.0254, "0":12.5*0.0254, "4":12.5*0.0254, "2":5.5*0.0254, "5":5.5*0.0254, "1":53.0*0.0254, "6":53.0*0.0254}
+labels = {0:'Blue Goal', 1:'Blue Robot', 2:'Neutral Goal', 3:'Platform', 4:'Red Goal', 5:'Red Robot', 6:'Ring'}
+width_dict = {"6":3.5*0.0254, "0":12.5*0.0254, "2":12.5*0.0254, "4":12.5*0.0254, "1":5.5*0.0254, "5":5.5*0.0254, "3":53.0*0.0254}
 
 # Constants for object localization
 HFOV, VFOV = 86, 57
@@ -33,10 +32,13 @@ config.enable_device_from_file('static/test-run-30-sec.bag')
 pipeline.start(config)
 
 # GPU:
-model = torch.jit.load('static/best_torchscript.pt', map_location=torch.device('cuda:0'))
-model.model.float()
-im = torch.zeros((1, 3, 640, 640)).to(torch.device('cuda:0')).type(torch.float)  # input image
-model.forward(im)
+# model = torch.jit.load('static/best_torchscript.pt', map_location=torch.device('cuda:0'))
+model = attempt_load('static/best.pt', map_location=torch.device('cuda:0'))
+model.model.half()
+img = torch.zeros((1, 3, 480, 640)).to(torch.device('cuda:0')).type(torch.half)
+model.forward(img)
+
+
 # CPU:
 # model = torch.jit.load('static/best_torchscript.pt')
 
@@ -68,22 +70,6 @@ def obj_distance(obj, depth_frame):
     
     return distance
 
-def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
-    # Rescale coords (xyxy) from img1_shape to img0_shape
-    if ratio_pad is None:  # calculate from img0_shape
-        gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
-        pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # wh padding
-    else:
-        gain = ratio_pad[0][0]
-        pad = ratio_pad[1]
-
-    coords[[0, 2]] -= pad[0]  # x padding
-    coords[[1, 3]] -= pad[1]  # y padding
-    coords[:4] /= gain
-    clip_coords(coords, img0_shape)
-    return coords
-
-def clip_coords(boxes, shape):
     # Clip bounding xyxy bounding boxes to image shape (height, width)
     if isinstance(boxes, torch.Tensor):  # faster individually
         boxes[0].clamp_(0, shape[1])  # x1
@@ -98,28 +84,33 @@ while True:
     frames = pipeline.wait_for_frames()
     depth_frame = frames.get_depth_frame()
     color_frame = frames.get_color_frame()
-    color_image = np.asanyarray(color_frame.get_data())
-    color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
 
-    # Model inference & NMS
-    resized = cv2.resize(color_image, (640, 640), interpolation = cv2.INTER_AREA)
-    model_input = torch.reshape(torch.tensor(resized).float(), (1, 3, 640, 640)).cuda()
+    # Format Image and put on GPU
+    color_image = np.ascontiguousarray(color_frame.get_data()).transpose((2, 0, 1))
+    torch.cuda.synchronize()
+    model_input = torch.from_numpy(color_image).cuda().half()
     model_input /= 255
-    results = model(model_input)
-    print(results[0].shape)
-    print(results[1][0].shape)
-    nms_results = non_max_suppression(results, conf_thres=0.7)[0]
+    model_input = model_input[None]
+    torch.cuda.synchronize()
 
-    annotator = Annotator(color_image.copy())
+    # Run model inference
+    results = model(model_input)[0]
+    torch.cuda.synchronize()
 
-    #print(nms_results.shape)
-    #print(nms_results)
+    # Run NMS algorithm
+    nms_results = non_max_suppression(results, conf_thres=0.5)[0]
+    torch.cuda.synchronize()
+    print(nms_results)
+
+    # Set up annotator to get test output image (TODO remove - only for testing)
+    img = cv2.cvtColor(np.ascontiguousarray(color_frame.get_data()), cv2.COLOR_RGB2BGR)
+    annotator = Annotator(img)
+
 
     # Calculates the distance of all game objects in frame
     HFOV, VFOV = 86, 57
     # TODO calculate translation between robot and field using robots location at time of image capture
     for obj in nms_results:
-        obj[:4] = scale_coords([640,640], obj[:4], (480, 640, 3)).round()
 
         annotator.box_label(obj[:4].cpu())
 
@@ -127,15 +118,18 @@ while True:
         x1, y1, x2, y2, conf, cls = obj.cpu()
         x = float((x1 + x2)/2.0)
         y = float((y1 + y2)/2.0)
-        h_angle = np.radians(((x - 320.0)/(320.0))*(HFOV/2))
-        v_angle = np.radians(((y - 320.0)/(320.0))*(VFOV/2))
+        h_angle = np.radians(((x - 320.0)/(320.0))*(HFOV/2)) #TODO - verfiy
+        v_angle = np.radians(((y - 320.0)/(320.0))*(VFOV/2)) #TODO - verfiy
 
         # Convert polar angles into vector
         v_x = dist * np.cos(v_angle) * np.cos(h_angle)
         v_y = dist * np.cos(v_angle) * np.sin(h_angle)
         v_z = dist * np.sin(v_angle)
         vec = np.array([v_x, v_y, v_z])
+        print(vec)
     
+    
+    # Print test output (TODO remove - only for testing)
     im0 = annotator.result()
     cv2.imshow('image',im0)
     cv2.waitKey(0)
