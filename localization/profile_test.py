@@ -2,10 +2,15 @@ import pyrealsense2 as rs
 import cv2
 import numpy as np
 import torch
+import time
 
 from utils.plots import Annotator
 from models.experimental import attempt_load
 from utils.general import non_max_suppression
+
+from vector_transform import FrameTransform
+from platform_state import platform_state_with_determinism
+from goal_state import is_goal_tipped
 
 # TODO: 
 # - Find out why x1/y1 values are out of frame
@@ -16,9 +21,8 @@ focal_length = ((448.0-172.0) * (24.0*0.0254)) / (11.0*0.0254)
 labels = {0:'Blue Goal', 1:'Blue Robot', 2:'Neutral Goal', 3:'Platform', 4:'Red Goal', 5:'Red Robot', 6:'Ring'}
 width_dict = {"6":3.5*0.0254, "0":12.5*0.0254, "2":12.5*0.0254, "4":12.5*0.0254, "1":5.5*0.0254, "5":5.5*0.0254, "3":53.0*0.0254}
 
-# Constants for object localization
-HFOV, VFOV = 86, 57
-# TODO calculate cameraToRobotRotation and cameraToRobotTranslation Matrices (import vector_transform code)
+# Initialize coordinate frame transofrmation object
+tf2 = FrameTransform()
 
 # Initialize pipeline and start stream
 pipeline = rs.pipeline()
@@ -37,10 +41,6 @@ model = attempt_load('static/best.pt', map_location=torch.device('cuda:0'))
 model.model.half()
 img = torch.zeros((1, 3, 480, 640)).to(torch.device('cuda:0')).type(torch.half)
 model.forward(img)
-
-
-# CPU:
-# model = torch.jit.load('static/best_torchscript.pt')
 
 def obj_distance(obj, depth_frame):
     # object parsing
@@ -80,10 +80,14 @@ def obj_distance(obj, depth_frame):
         boxes[[0, 2]] = boxes[[0, 2]].clip(0, shape[1])  # x1, x2
         boxes[[1, 3]] = boxes[[1, 3]].clip(0, shape[0])  # y1, y2
 
+counter = 0
+startTime = time.time()
+
 while True:
     frames = pipeline.wait_for_frames()
     depth_frame = frames.get_depth_frame()
     color_frame = frames.get_color_frame()
+    image = cv2.cvtColor(np.ascontiguousarray(color_frame.get_data()), cv2.COLOR_RGB2BGR)
 
     # Format Image and put on GPU
     color_image = np.ascontiguousarray(color_frame.get_data()).transpose((2, 0, 1))
@@ -100,37 +104,45 @@ while True:
     # Run NMS algorithm
     nms_results = non_max_suppression(results, conf_thres=0.5)[0]
     torch.cuda.synchronize()
-    print(nms_results)
+    #print(nms_results)
 
     # Set up annotator to get test output image (TODO remove - only for testing)
-    img = cv2.cvtColor(np.ascontiguousarray(color_frame.get_data()), cv2.COLOR_RGB2BGR)
-    annotator = Annotator(img)
+    # annotator = Annotator(image)
 
 
     # Calculates the distance of all game objects in frame
-    HFOV, VFOV = 86, 57
-    # TODO calculate translation between robot and field using robots location at time of image capture
     for obj in nms_results:
 
-        annotator.box_label(obj[:4].cpu())
+        # Label output image (TODO remove - only for testing)
+        # annotator.box_label(obj[:4].cpu())
 
         dist = float(obj_distance(obj, depth_frame).cpu())
         x1, y1, x2, y2, conf, cls = obj.cpu()
-        x = float((x1 + x2)/2.0)
-        y = float((y1 + y2)/2.0)
-        h_angle = np.radians(((x - 320.0)/(320.0))*(HFOV/2)) #TODO - verfiy
-        v_angle = np.radians(((y - 320.0)/(320.0))*(VFOV/2)) #TODO - verfiy
-
-        # Convert polar angles into vector
-        v_x = dist * np.cos(v_angle) * np.cos(h_angle)
-        v_y = dist * np.cos(v_angle) * np.sin(h_angle)
-        v_z = dist * np.sin(v_angle)
-        vec = np.array([v_x, v_y, v_z])
-        print(vec)
+        # Temp robot location and rotation values for testing (x, y, theta)
+        # TODO - update for actual robot location at time of image capture
+        robot_location = (2, 2, 45)
+        object_location = tf2.get_object_location(x1, y1, x2, y2, dist, robot_location)
+        #print(object_location)
+        
+        # Determine goal state
+        if cls == 0.0 or cls == 2.0 or cls == 4.0:
+            x1, y1, x2, y2 = abs(int(x1)), abs(int(y1)), abs(int(x2)), abs(int(y2))
+            goal_state = is_goal_tipped(image, x1, y1, x2, y2)
+            #print(goal_state)
+        # Determing platform state
+        if cls == 3.0:
+            x1, y1, x2, y2 = abs(int(x1)), abs(int(y1)), abs(int(x2)), abs(int(y2))
+            platform_state = platform_state_with_determinism(robot_location, image, x1, y1, x2, y2)
+            #print(platform_state)
+        
+        #TODO - add locations and states to json for export to adversarial team
     
-    
+    counter += 1
+    if counter % 100 == 0:
+        executionTime = (time.time() - startTime)
+        print('FPS: ' + str(float(counter)/executionTime))
     # Print test output (TODO remove - only for testing)
-    im0 = annotator.result()
-    cv2.imshow('image',im0)
-    cv2.waitKey(0)
+    # im0 = annotator.result()
+    # cv2.imshow('image',im0)
+    # cv2.waitKey(0)
 

@@ -1,5 +1,9 @@
 import numpy as np
 
+# Intel Realsense specific horizontal and vertical field of view
+HFOV, VFOV = 86, 57
+
+
 class Quaternion():
     def __init__(self, qx: float, qy: float, qz: float, qw: float):
         self.qx = qx
@@ -77,8 +81,55 @@ def coordTransform(M: np.array, A: np.array, translation: np.array) -> np.array:
     q2Vec = APrime + translation
     return q2Vec
 
+def determine_camera_vector(x1, y1, x2, y2, dist):
+    """
+    :param x1 y1 x2 y2: Object location identified by YOLOv5 model
+    :param dist: Object distance from camera
+    :return: vector of object location from camera
+    """
+    x = float((x1 + x2)/2.0)
+    y = float((y1 + y2)/2.0)
+    h_angle = np.radians(((x - 320.0)/(320.0))*(HFOV/2)) #TODO - verfiy calculations and output
+    v_angle = np.radians(((y - 320.0)/(320.0))*(VFOV/2)) #TODO - verfiy calculations and output
+    
+    # Convert polar angles into vector
+    v_x = dist * np.cos(v_angle) * np.cos(h_angle)
+    v_y = dist * np.cos(v_angle) * np.sin(h_angle)
+    v_z = dist * np.sin(v_angle)
+    vec = np.array([v_x, v_y, v_z])
+    return vec
 
-# Testing main
+class FrameTransform():
+    def __init__(self):
+        self.camera = getQuaternionFromEuler(0,np.radians(15),0) #TODO - update for actual rotational changes in camera frame (0.2618 rad)
+        self.robot = Quaternion(0.0,0.0,0.0,1.0)
+        self.cameraToRobotTranslation = np.array([-0.19,0,0.3]) #TODO - update for actual translational changes in camera frame (X,Y,Z)
+        self.gyroDistanceToGround = 0.0 # TODO - update actual value based on gyro distance to ground
+
+    def get_object_location(self, x1, y1, x2, y2, dist, robot_location):
+        """
+        :param x1 y1 x2 y2: Object location identified by YOLOv5 model
+        :param dist: Object distance from camera
+        :param robot_location: (x, y, theta) of robot's location on field (meters, degrees)
+        :return: (x,y,z) vector of objects location on field
+        """
+
+        #Calculate vector from camera to robot
+        cameraToRobotRotation = Quat2Mat(rotDiff(self.camera, self.robot))
+        vec1 = coordTransform(cameraToRobotRotation, determine_camera_vector(x1, y1, x2, y2, dist), self.cameraToRobotTranslation)
+        
+        # Calculate vector from robot to field
+        field = getQuaternionFromEuler(0.0, 0.0, -np.radians(robot_location[2]))
+        robotToFieldRotation = Quat2Mat(rotDiff(self.robot, field))
+        robotToFieldTranslation = np.array([robot_location[0], robot_location[1], self.gyroDistanceToGround])
+        vec2 = coordTransform(robotToFieldRotation, vec1, robotToFieldTranslation)
+
+        return vec2
+
+
+
+
+# Testing main - TODO remove
 def main():
     camera = getQuaternionFromEuler(0,np.radians(15),0) #TODO - update for actual rotational changes in camera frame (0.2618 rad)
     robot = Quaternion(0.0,0.0,0.0,1.0)
