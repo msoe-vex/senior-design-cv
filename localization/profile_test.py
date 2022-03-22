@@ -12,9 +12,6 @@ from vector_transform import FrameTransform
 from platform_state import platform_state_with_determinism
 from goal_state import is_goal_tipped
 
-# TODO: 
-# - Find out why x1/y1 values are out of frame
-
 # Calculation for object distance based on bounding box dimensions in meters
 focal_length = ((448.0-172.0) * (24.0*0.0254)) / (11.0*0.0254)
 # Width of game objects in meters
@@ -141,6 +138,7 @@ while True:
     if counter % 100 == 0:
         executionTime = (time.time() - startTime)
         print('FPS: ' + str(float(counter)/executionTime))
+    
     # Print test output (TODO remove - only for testing)
     # im0 = annotator.result()
     # cv2.imshow('image',im0)

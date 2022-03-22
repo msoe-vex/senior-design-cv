@@ -104,7 +104,7 @@ class FrameTransform():
         self.camera = getQuaternionFromEuler(0,np.radians(15),0) #TODO - update for actual rotational changes in camera frame (0.2618 rad)
         self.robot = Quaternion(0.0,0.0,0.0,1.0)
         self.cameraToRobotTranslation = np.array([-0.19,0,0.3]) #TODO - update for actual translational changes in camera frame (X,Y,Z)
-        self.gyroDistanceToGround = 0.0 # TODO - update actual value based on gyro distance to ground
+        self.gyroDistanceToGround = -0.02 # TODO - update actual value based on gyro distance to ground
 
     def get_object_location(self, x1, y1, x2, y2, dist, robot_location):
         """
