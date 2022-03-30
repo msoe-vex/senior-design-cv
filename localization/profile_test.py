@@ -6,7 +6,7 @@ import time
 
 from utils.plots import Annotator
 from models.experimental import attempt_load
-from utils.general import non_max_suppression
+from detect import non_max_suppression
 
 from vector_transform import FrameTransform
 from platform_state import platform_state_with_determinism
@@ -25,11 +25,11 @@ tf2 = FrameTransform()
 pipeline = rs.pipeline()
 config = rs.config()
 # For real time D435 use:
-# config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-# config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
-config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)
-config.enable_device_from_file('static/test-run-30-sec.bag')
+config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+# config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
+# config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)
+# config.enable_device_from_file('static/test-run-30-sec.bag')
 pipeline.start(config)
 
 # GPU:
@@ -84,7 +84,8 @@ while True:
     frames = pipeline.wait_for_frames()
     depth_frame = frames.get_depth_frame()
     color_frame = frames.get_color_frame()
-    image = cv2.cvtColor(np.ascontiguousarray(color_frame.get_data()), cv2.COLOR_RGB2BGR)
+    # image = cv2.cvtColor(np.ascontiguousarray(color_frame.get_data()), cv2.COLOR_RGB2BGR)
+    image = np.ascontiguousarray(color_frame.get_data())
 
     # Format Image and put on GPU
     color_image = np.ascontiguousarray(color_frame.get_data()).transpose((2, 0, 1))
@@ -99,48 +100,49 @@ while True:
     torch.cuda.synchronize()
 
     # Run NMS algorithm
-    nms_results = non_max_suppression(results, conf_thres=0.5)[0]
+    nms_results = non_max_suppression(results, conf_thres=0.4)[0]
     torch.cuda.synchronize()
     #print(nms_results)
 
     # Set up annotator to get test output image (TODO remove - only for testing)
-    # annotator = Annotator(image)
+    annotator = Annotator(image)
 
 
     # Calculates the distance of all game objects in frame
     for obj in nms_results:
 
         # Label output image (TODO remove - only for testing)
-        # annotator.box_label(obj[:4].cpu())
+        annotator.box_label(obj[:4].cpu())
 
         dist = float(obj_distance(obj, depth_frame).cpu())
         x1, y1, x2, y2, conf, cls = obj.cpu()
         # Temp robot location and rotation values for testing (x, y, theta)
         # TODO - update for actual robot location at time of image capture
-        robot_location = (2, 2, 45)
+        robot_location = (0.17, 0, 0)
         object_location = tf2.get_object_location(x1, y1, x2, y2, dist, robot_location)
-        #print(object_location)
+        print(labels[int(cls)], ":", object_location)
         
         # Determine goal state
         if cls == 0.0 or cls == 2.0 or cls == 4.0:
             x1, y1, x2, y2 = abs(int(x1)), abs(int(y1)), abs(int(x2)), abs(int(y2))
             goal_state = is_goal_tipped(image, x1, y1, x2, y2)
-            #print(goal_state)
+            print(goal_state)
         # Determing platform state
         if cls == 3.0:
             x1, y1, x2, y2 = abs(int(x1)), abs(int(y1)), abs(int(x2)), abs(int(y2))
             platform_state = platform_state_with_determinism(robot_location, image, x1, y1, x2, y2)
-            #print(platform_state)
+            print(platform_state)
         
         #TODO - add locations and states to json for export to adversarial team
     
-    counter += 1
-    if counter % 100 == 0:
-        executionTime = (time.time() - startTime)
-        print('FPS: ' + str(float(counter)/executionTime))
+    # counter += 1
+    # if counter % 100 == 0:
+    #     executionTime = (time.time() - startTime)
+    #     print('FPS: ' + str(float(counter)/executionTime))
     
     # Print test output (TODO remove - only for testing)
-    # im0 = annotator.result()
-    # cv2.imshow('image',im0)
-    # cv2.waitKey(0)
+    im0 = annotator.result()
+    cv2.imshow('image',im0)
+    cv2.waitKey(0)
 
+  
