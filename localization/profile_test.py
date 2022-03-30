@@ -1,3 +1,4 @@
+from turtle import pos
 import pyrealsense2 as rs
 import cv2
 import numpy as np
@@ -11,6 +12,22 @@ from detect import non_max_suppression
 from vector_transform import FrameTransform
 from platform_state import platform_state_with_determinism
 from goal_state import is_goal_tipped
+
+from .fieldRepresentation import FieldRepresentation
+from .platforms import BluePlatform, PlatformState, RedPlatform
+from .scoring_elements import (
+    LowNeutralGoal,
+    RedGoal,
+    BlueGoal,
+    Ring
+)
+from .robots import HostRobot, PartnerRobot, OpposingRobot
+from .mathUtils import Pose2D
+from .enumerations import Color
+
+# Team color and pos constant assumptions to be used until can be recieved from pos node
+team_color = Color.RED
+robot_pose = Pose2D(0,0)
 
 # Calculation for object distance based on bounding box dimensions in meters
 focal_length = ((448.0-172.0) * (24.0*0.0254)) / (11.0*0.0254)
@@ -79,6 +96,9 @@ def obj_distance(obj, depth_frame):
 
 counter = 0
 startTime = time.time()
+# Declaring here for permanence
+red_platform = RedPlatform(PlatformState.LEVEL)
+blue_platform = BluePlatform(PlatformState.LEVEL)
 
 while True:
     frames = pipeline.wait_for_frames()
@@ -107,7 +127,10 @@ while True:
     # Set up annotator to get test output image (TODO remove - only for testing)
     annotator = Annotator(image)
 
-
+    ring_arr = []
+    goal_arr = []
+    robot_arr = [HostRobot(team_color, robot_pose)]
+    
     # Calculates the distance of all game objects in frame
     for obj in nms_results:
 
@@ -120,25 +143,69 @@ while True:
         # TODO - update for actual robot location at time of image capture
         robot_location = (0.17, 0, 0)
         object_location = tf2.get_object_location(x1, y1, x2, y2, dist, robot_location)
-        print(labels[int(cls)], ":", object_location)
+        print(labels[int(cls)], ":", object_location) #TODO - for testing
+        pose_x, pose_y = object_location[0], object_location[1]
+        #print(object_location)
+        if cls == 6.0:
+            ring_arr.append(Ring(Pose2D(pose_x, pose_y)))
         
         # Determine goal state
         if cls == 0.0 or cls == 2.0 or cls == 4.0:
             x1, y1, x2, y2 = abs(int(x1)), abs(int(y1)), abs(int(x2)), abs(int(y2))
             goal_state = is_goal_tipped(image, x1, y1, x2, y2)
-            print(goal_state)
+            print(goal_state) #TODO - for testing
+            tipped = False if goal_state < 1 else True
+            if cls == 0.0:
+                goal_arr.append(BlueGoal(Pose2D(pose_x, pose_y), tipped=tipped))
+            elif cls == 2.0:
+                goal_arr.append(LowNeutralGoal(Pose2D(pose_x, pose_y), tipped=tipped))
+            else:
+                goal_arr.append(RedGoal(Pose2D(pose_x, pose_y), tipped=tipped))
+
         # Determing platform state
         if cls == 3.0:
             x1, y1, x2, y2 = abs(int(x1)), abs(int(y1)), abs(int(x2)), abs(int(y2))
-            platform_state = platform_state_with_determinism(robot_location, image, x1, y1, x2, y2)
-            print(platform_state)
+            # plat_color: (-1,0,1) -> (unknown, blue, red)
+            # plat_state: (-1,0,1,2) -> (unknown, left, center, right) 
+            plat_color, plat_state = platform_state_with_determinism(robot_location, image, x1, y1, x2, y2)
+            print(platform_state) #TODO - for testing
+
+            platform_state = None
+            if plat_state == 0:
+                platform_state = PlatformState.LEFT
+            elif plat_state == 1:
+                platform_state = PlatformState.LEVEL
+            elif plat_state == 2:
+                platform_state = PlatformState.RIGHT
+
+            if plat_state != -1:
+                if plat_color == 0:
+                    blue_platform = BluePlatform(platform_state)
+                elif plat_color == 1:
+                    red_platform = RedPlatform(platform_state)
         
-        #TODO - add locations and states to json for export to adversarial team
+        if cls == 1.0 and team_color == Color.RED:
+            robot_arr.append(OpposingRobot(Color.BLUE, Pose2D(pose_x, pose_y)))
+        elif cls == 5.0 and team_color == Color.RED:
+            robot_arr.append(PartnerRobot(Color.RED, Pose2D(pose_x, pose_y)))
+        if cls == 1.0 and team_color == Color.BLUE:
+            robot_arr.append(PartnerRobot(Color.BLUE, Pose2D(pose_x, pose_y)))
+        elif cls == 5.0 and team_color == Color.BLUE:
+            robot_arr.append(OpposingRobot(Color.RED, Pose2D(pose_x, pose_y)))
     
-    # counter += 1
-    # if counter % 100 == 0:
-    #     executionTime = (time.time() - startTime)
-    #     print('FPS: ' + str(float(counter)/executionTime))
+    field_representation = FieldRepresentation(
+        rings=ring_arr,
+        goals=goal_arr,
+        red_platform=red_platform,
+        blue_platform=blue_platform,
+        robots=robot_arr
+    )
+    # TODO publish field representation for advesarial strategy team
+
+    counter += 1
+    if counter % 100 == 0:
+        executionTime = (time.time() - startTime)
+        print('FPS: ' + str(float(counter)/executionTime))
     
     # Print test output (TODO remove - only for testing)
     im0 = annotator.result()
