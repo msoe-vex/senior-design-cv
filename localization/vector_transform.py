@@ -101,9 +101,9 @@ def determine_camera_vector(x1, y1, x2, y2, dist):
 
 class FrameTransform():
     def __init__(self):
-        self.camera = getQuaternionFromEuler(0,np.radians(9),0) #TODO - update for actual rotational changes in camera frame (0.2618 rad)
+        self.camera = getQuaternionFromEuler(0,np.radians(9),np.radians(-90)) #TODO - update for actual rotational changes in camera frame (0.2618 rad)
         self.robot = Quaternion(0.0,0.0,0.0,1.0)
-        self.cameraToRobotTranslation = np.array([-0.28,0,0.28]) #TODO - update for actual translational changes in camera frame (X,Y,Z)
+        self.cameraToRobotTranslation = np.array([0.0,-0.25,0.15]) #TODO - update for actual translational changes in camera frame (X,Y,Z)
         self.gyroDistanceToGround = 0.00 # TODO - update actual value based on gyro distance to ground
 
     def get_object_location(self, x1, y1, x2, y2, dist, robot_location):
