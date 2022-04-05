@@ -82,7 +82,8 @@ def obj_distance(obj, depth_frame):
     if (depth_distance_meters == 0):
         distance = trig_distance
     
-    return distance
+    # Convert meters to inches before returning result
+    return (distance.cpu()) * 39.3700787402
 
     # Clip bounding xyxy bounding boxes to image shape (height, width)
     if isinstance(boxes, torch.Tensor):  # faster individually
@@ -137,11 +138,11 @@ while True:
         # Label output image (TODO remove - only for testing)
         annotator.box_label(obj[:4].cpu())
 
-        dist = float(obj_distance(obj, depth_frame).cpu())
+        dist = obj_distance(obj, depth_frame)
         x1, y1, x2, y2, conf, cls = obj.cpu()
         # Temp robot location and rotation values for testing (x, y, theta)
         # TODO - update for actual robot location at time of image capture
-        robot_location = (0.17, 0, 0)
+        robot_location = (15, 0, 0)
         object_location = tf2.get_object_location(x1, y1, x2, y2, dist, robot_location)
         print(labels[int(cls)], ":", object_location) #TODO - for testing
         pose_x, pose_y = object_location[0], object_location[1]
