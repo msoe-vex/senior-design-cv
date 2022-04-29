@@ -5,9 +5,12 @@ import numpy as np
 import torch
 import time
 import matplotlib.pyplot as plt
+import io
+import math
 from utils.plots import Annotator
 from models.experimental import attempt_load
 from detect import non_max_suppression
+from matplotlib.transforms import Bbox
 
 from vector_transform import FrameTransform
 from platform_state import platform_state_with_determinism
@@ -27,7 +30,7 @@ from entities.enumerations import Color
 
 # Team color and pos constant assumptions to be used until can be recieved from pos node
 team_color = Color.RED
-robot_pose = Pose2D(0,0)
+robot_pose = Pose2D(0,30,math.radians(90))
 
 # Calculation for object distance based on bounding box dimensions in meters
 focal_length = ((448.0-172.0) * (24.0*0.0254)) / (11.0*0.0254)
@@ -42,10 +45,10 @@ tf2 = FrameTransform()
 pipeline = rs.pipeline()
 config = rs.config()
 # For real time D435 use:
-config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-# config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
-# config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)
+# config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+# config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
+config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)
 config.enable_device_from_file('static/test-run-30-sec.bag')
 pipeline.start(config)
 
@@ -102,10 +105,10 @@ red_platform = RedPlatform(PlatformState.LEVEL)
 blue_platform = BluePlatform(PlatformState.LEVEL)
 imgs = []
 
-while True:
+for i in range(500):
     frames = pipeline.wait_for_frames()
-    frame = frames.first()
-    time_stamp = frame.get_timestamp()
+    # frame = frames.first()
+    # time_stamp = frames.get_timestamp()
     depth_frame = frames.get_depth_frame()
     color_frame = frames.get_color_frame()
     # image = cv2.cvtColor(np.ascontiguousarray(color_frame.get_data()), cv2.COLOR_RGB2BGR)
@@ -139,13 +142,13 @@ while True:
     for obj in nms_results:
 
         # Label output image (TODO remove - only for testing)
-        annotator.box_label(obj[:4].cpu())
+        # annotator.box_label(obj[:4].cpu())
 
         dist = obj_distance(obj, depth_frame)
         x1, y1, x2, y2, conf, cls = obj.cpu()
         # Temp robot location and rotation values for testing (x, y, theta)
         # TODO - update for actual robot location at time of image capture
-        robot_location = (0, 72, 90)
+        robot_location = (0, 30, 90)
         object_location = tf2.get_object_location(x1, y1, x2, y2, dist, robot_location)
         pose_x, pose_y = object_location[0], object_location[1]
         #print(object_location)
@@ -186,14 +189,14 @@ while True:
                 elif plat_color == 1:
                     red_platform = RedPlatform(platform_state)
         
-        if cls == 1.0 and team_color == Color.RED:
-            robot_arr.append(OpposingRobot(Color.BLUE, Pose2D(pose_x, pose_y)))
-        elif cls == 5.0 and team_color == Color.RED:
-            robot_arr.append(PartnerRobot(Color.RED, Pose2D(pose_x, pose_y)))
-        if cls == 1.0 and team_color == Color.BLUE:
-            robot_arr.append(PartnerRobot(Color.BLUE, Pose2D(pose_x, pose_y)))
-        elif cls == 5.0 and team_color == Color.BLUE:
-            robot_arr.append(OpposingRobot(Color.RED, Pose2D(pose_x, pose_y)))
+        # if cls == 1.0 and team_color == Color.RED:
+        #     robot_arr.append(OpposingRobot(Color.BLUE, Pose2D(pose_x, pose_y, 1)))
+        # elif cls == 5.0 and team_color == Color.RED:
+        #     robot_arr.append(PartnerRobot(Color.RED, Pose2D(pose_x, pose_y, 1)))
+        # if cls == 1.0 and team_color == Color.BLUE:
+        #     robot_arr.append(PartnerRobot(Color.BLUE, Pose2D(pose_x, pose_y, 1)))
+        # elif cls == 5.0 and team_color == Color.BLUE:
+        #     robot_arr.append(OpposingRobot(Color.RED, Pose2D(pose_x, pose_y, 1)))
     
     field_representation = FieldRepresentation(
         rings=ring_arr,
@@ -217,12 +220,12 @@ while True:
     imgs.append(cv2.cvtColor(plt.imread(buff, "jpg"), cv2.COLOR_RGB2BGR))
     plt.close("all")
     
-    fig = field_representation.draw()
-    plt.show()
+    # fig = field_representation.draw()
+    # plt.show()
 
 im_height, im_width, im_layers = imgs[0].shape
 video = cv2.VideoWriter(
-    "training.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 30, (im_width, im_height)
+    "training.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 10, (im_width, im_height)
 )
 
 for img in imgs:

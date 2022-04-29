@@ -103,7 +103,7 @@ class FrameTransform():
     def __init__(self):
         self.camera = getQuaternionFromEuler(0,np.radians(10),0) #TODO - update  rotational changes in camera frame (roll-X, pitch-Y, yaw-Z)
         self.robot = Quaternion(0.0,0.0,0.0,1.0)
-        self.cameraToRobotTranslation = np.array([8.0,0.0,8.0]) #TODO - update translational changes in camera frame (X,Y,Z)
+        self.cameraToRobotTranslation = np.array([-10.0,0.0,8.0]) #TODO - update translational changes in camera frame (X,Y,Z)
         self.gyroDistanceToGround = 0 # TODO - update actual value based on gyro distance to ground
 
     def get_object_location(self, x1, y1, x2, y2, dist, robot_location):
@@ -116,9 +116,9 @@ class FrameTransform():
 
         #Calculate vector from camera to robot
         cameraToRobotRotation = Quat2Mat(rotDiff(self.camera, self.robot))
-        print("Camera Vector: ", determine_camera_vector(x1, y1, x2, y2, dist))
+        # print("Camera Vector: ", determine_camera_vector(x1, y1, x2, y2, dist))
         vec1 = coordTransform(cameraToRobotRotation, determine_camera_vector(x1, y1, x2, y2, dist), self.cameraToRobotTranslation)
-        print("Robot Vector: ", vec1)
+        # print("Robot Vector: ", vec1)
         
         # Calculate vector from robot to field
         field = getQuaternionFromEuler(0.0, 0.0, -np.radians(robot_location[2]))
