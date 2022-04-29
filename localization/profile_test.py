@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import torch
 import time
-
+import matplotlib.pyplot as plt
 from utils.plots import Annotator
 from models.experimental import attempt_load
 from detect import non_max_suppression
@@ -13,21 +13,21 @@ from vector_transform import FrameTransform
 from platform_state import platform_state_with_determinism
 from goal_state import is_goal_tipped
 
-# from .fieldRepresentation import FieldRepresentation
-# from .platforms import BluePlatform, PlatformState, RedPlatform
-# from .scoring_elements import (
-#     LowNeutralGoal,
-#     RedGoal,
-#     BlueGoal,
-#     Ring
-# )
-# from .robots import HostRobot, PartnerRobot, OpposingRobot
-# from .mathUtils import Pose2D
-# from .enumerations import Color
+from entities.fieldRepresentation import FieldRepresentation
+from entities.platforms import BluePlatform, PlatformState, RedPlatform
+from entities.scoring_elements import (
+    LowNeutralGoal,
+    RedGoal,
+    BlueGoal,
+    Ring
+)
+from entities.robots import HostRobot, PartnerRobot, OpposingRobot
+from entities.mathUtils import Pose2D
+from entities.enumerations import Color
 
 # Team color and pos constant assumptions to be used until can be recieved from pos node
-# team_color = Color.RED
-# robot_pose = Pose2D(0,0)
+team_color = Color.RED
+robot_pose = Pose2D(0,0)
 
 # Calculation for object distance based on bounding box dimensions in meters
 focal_length = ((448.0-172.0) * (24.0*0.0254)) / (11.0*0.0254)
@@ -46,7 +46,7 @@ config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
 # config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
 # config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)
-# config.enable_device_from_file('static/test-run-30-sec.bag')
+config.enable_device_from_file('static/test-run-30-sec.bag')
 pipeline.start(config)
 
 # GPU:
@@ -76,7 +76,7 @@ def obj_distance(obj, depth_frame):
                             #  depth_frame.get_distance(x, y-2))/5.0
     
     # weighting and combining localization methods
-    distance = (trig_distance * .2) + (depth_distance_meters * .8) 
+    distance = (trig_distance * .15) + (depth_distance_meters * .85) 
     
     # in the event that depthmap can't detect distance, only use trig distance
     if (depth_distance_meters == 0):
@@ -85,24 +85,27 @@ def obj_distance(obj, depth_frame):
     # Convert meters to inches before returning result
     return (distance.cpu()) * 39.3700787402
 
-    # Clip bounding xyxy bounding boxes to image shape (height, width)
-    if isinstance(boxes, torch.Tensor):  # faster individually
-        boxes[0].clamp_(0, shape[1])  # x1
-        boxes[1].clamp_(0, shape[0])  # y1
-        boxes[2].clamp_(0, shape[1])  # x2
-        boxes[3].clamp_(0, shape[0])  # y2
-    else:  # np.array (faster grouped)
-        boxes[[0, 2]] = boxes[[0, 2]].clip(0, shape[1])  # x1, x2
-        boxes[[1, 3]] = boxes[[1, 3]].clip(0, shape[0])  # y1, y2
+#     Clip bounding xyxy bounding boxes to image shape (height, width)
+#     if isinstance(boxes, torch.Tensor):  # faster individually
+#         boxes[0].clamp_(0, shape[1])  # x1
+#         boxes[1].clamp_(0, shape[0])  # y1
+#         boxes[2].clamp_(0, shape[1])  # x2
+#         boxes[3].clamp_(0, shape[0])  # y2
+#     else:  # np.array (faster grouped)
+#         boxes[[0, 2]] = boxes[[0, 2]].clip(0, shape[1])  # x1, x2
+#         boxes[[1, 3]] = boxes[[1, 3]].clip(0, shape[0])  # y1, y2
 
 counter = 0
 startTime = time.time()
 # Declaring here for permanence
-# red_platform = RedPlatform(PlatformState.LEVEL)
-# blue_platform = BluePlatform(PlatformState.LEVEL)
+red_platform = RedPlatform(PlatformState.LEVEL)
+blue_platform = BluePlatform(PlatformState.LEVEL)
+imgs = []
 
 while True:
     frames = pipeline.wait_for_frames()
+    frame = frames.first()
+    time_stamp = frame.get_timestamp()
     depth_frame = frames.get_depth_frame()
     color_frame = frames.get_color_frame()
     # image = cv2.cvtColor(np.ascontiguousarray(color_frame.get_data()), cv2.COLOR_RGB2BGR)
@@ -126,11 +129,11 @@ while True:
     #print(nms_results)
 
     # Set up annotator to get test output image (TODO remove - only for testing)
-    annotator = Annotator(image)
+    # annotator = Annotator(image)
 
     ring_arr = []
     goal_arr = []
-    # robot_arr = [HostRobot(team_color, robot_pose)]
+    robot_arr = [HostRobot(team_color, robot_pose)]
     
     # Calculates the distance of all game objects in frame
     for obj in nms_results:
@@ -142,26 +145,25 @@ while True:
         x1, y1, x2, y2, conf, cls = obj.cpu()
         # Temp robot location and rotation values for testing (x, y, theta)
         # TODO - update for actual robot location at time of image capture
-        robot_location = (6, 6.5, 90)
+        robot_location = (0, 72, 90)
         object_location = tf2.get_object_location(x1, y1, x2, y2, dist, robot_location)
-        print(labels[int(cls)], ":", object_location) #TODO - for testing
         pose_x, pose_y = object_location[0], object_location[1]
         #print(object_location)
-        # if cls == 6.0:
-        #     ring_arr.append(Ring(Pose2D(pose_x, pose_y)))
+        if cls == 6.0:
+            ring_arr.append(Ring(Pose2D(pose_x, pose_y)))
         
         # Determine goal state
         if cls == 0.0 or cls == 2.0 or cls == 4.0:
             x1, y1, x2, y2 = abs(int(x1)), abs(int(y1)), abs(int(x2)), abs(int(y2))
             goal_state = is_goal_tipped(image, x1, y1, x2, y2)
-            print(goal_state) #TODO - for testing
-            # tipped = False if goal_state < 1 else True
-            # if cls == 0.0:
-            #     goal_arr.append(BlueGoal(Pose2D(pose_x, pose_y), tipped=tipped))
-            # elif cls == 2.0:
-            #     goal_arr.append(LowNeutralGoal(Pose2D(pose_x, pose_y), tipped=tipped))
-            # else:
-            #     goal_arr.append(RedGoal(Pose2D(pose_x, pose_y), tipped=tipped))
+
+            tipped = False if goal_state < 1 else True
+            if cls == 0.0:
+                goal_arr.append(BlueGoal(Pose2D(pose_x, pose_y), tipped=tipped))
+            elif cls == 2.0:
+                goal_arr.append(LowNeutralGoal(Pose2D(pose_x, pose_y), tipped=tipped))
+            else:
+                goal_arr.append(RedGoal(Pose2D(pose_x, pose_y), tipped=tipped))
 
         # Determing platform state
         if cls == 3.0:
@@ -169,41 +171,64 @@ while True:
             # plat_color: (-1,0,1) -> (unknown, blue, red)
             # plat_state: (-1,0,1,2) -> (unknown, left, center, right) 
             plat_color, plat_state = platform_state_with_determinism(robot_location, image, x1, y1, x2, y2)
-            print(plat_color, plat_state) #TODO - for testing
 
-        #     platform_state = None
-        #     if plat_state == 0:
-        #         platform_state = PlatformState.LEFT
-        #     elif plat_state == 1:
-        #         platform_state = PlatformState.LEVEL
-        #     elif plat_state == 2:
-        #         platform_state = PlatformState.RIGHT
+            platform_state = None
+            if plat_state == 0:
+                platform_state = PlatformState.LEFT
+            elif plat_state == 1:
+                platform_state = PlatformState.LEVEL
+            elif plat_state == 2:
+                platform_state = PlatformState.RIGHT
 
-        #     if plat_state != -1:
-        #         if plat_color == 0:
-        #             blue_platform = BluePlatform(platform_state)
-        #         elif plat_color == 1:
-        #             red_platform = RedPlatform(platform_state)
+            if plat_state != -1:
+                if plat_color == 0:
+                    blue_platform = BluePlatform(platform_state)
+                elif plat_color == 1:
+                    red_platform = RedPlatform(platform_state)
         
-        # if cls == 1.0 and team_color == Color.RED:
-        #     robot_arr.append(OpposingRobot(Color.BLUE, Pose2D(pose_x, pose_y)))
-        # elif cls == 5.0 and team_color == Color.RED:
-        #     robot_arr.append(PartnerRobot(Color.RED, Pose2D(pose_x, pose_y)))
-        # if cls == 1.0 and team_color == Color.BLUE:
-        #     robot_arr.append(PartnerRobot(Color.BLUE, Pose2D(pose_x, pose_y)))
-        # elif cls == 5.0 and team_color == Color.BLUE:
-        #     robot_arr.append(OpposingRobot(Color.RED, Pose2D(pose_x, pose_y)))
+        if cls == 1.0 and team_color == Color.RED:
+            robot_arr.append(OpposingRobot(Color.BLUE, Pose2D(pose_x, pose_y)))
+        elif cls == 5.0 and team_color == Color.RED:
+            robot_arr.append(PartnerRobot(Color.RED, Pose2D(pose_x, pose_y)))
+        if cls == 1.0 and team_color == Color.BLUE:
+            robot_arr.append(PartnerRobot(Color.BLUE, Pose2D(pose_x, pose_y)))
+        elif cls == 5.0 and team_color == Color.BLUE:
+            robot_arr.append(OpposingRobot(Color.RED, Pose2D(pose_x, pose_y)))
     
-    print("-------------------------------")
+    field_representation = FieldRepresentation(
+        rings=ring_arr,
+        goals=goal_arr,
+        red_platform=red_platform,
+        blue_platform=blue_platform,
+        robots=robot_arr
+    )
+    
+    ax = field_representation.draw()
+    # ax.axis("off")
+    ax.figure.canvas.draw()
+    # trans = ax.figure.dpi_scale_trans.inverted()
+    # bbox = ax.bbox.transformed(trans)
+    bbox = Bbox([[1.0, 1.0], [15, 10.75]])
+    buff = io.BytesIO()
+    plt.savefig(
+        buff, format="jpg", dpi=ax.figure.dpi, bbox_inches=bbox, pad_inches=2
+    )
+    buff.seek(0)
+    imgs.append(cv2.cvtColor(plt.imread(buff, "jpg"), cv2.COLOR_RGB2BGR))
+    plt.close("all")
+    
+    fig = field_representation.draw()
+    plt.show()
 
-    # field_representation = FieldRepresentation(
-    #     rings=ring_arr,
-    #     goals=goal_arr,
-    #     red_platform=red_platform,
-    #     blue_platform=blue_platform,
-    #     robots=robot_arr
-    # )
-    # TODO publish field representation for advesarial strategy team
+im_height, im_width, im_layers = imgs[0].shape
+video = cv2.VideoWriter(
+    "training.mp4", cv2.VideoWriter_fourcc(*"mp4v"), 30, (im_width, im_height)
+)
+
+for img in imgs:
+    video.write(img)
+
+video.release()
 
     # counter += 1
     # if counter % 100 == 0:
@@ -211,8 +236,8 @@ while True:
     #     print('FPS: ' + str(float(counter)/executionTime))
     
     # Print test output (TODO remove - only for testing)
-    im0 = annotator.result()
-    cv2.imshow('image',im0)
-    cv2.waitKey(0)
+    # im0 = annotator.result()
+    # cv2.imshow('image',im0)
+    # cv2.waitKey(0)
 
   
